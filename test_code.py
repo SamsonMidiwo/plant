@@ -1,5 +1,21 @@
+from flask import Flask, render_template, request, redirect, url_for, session
 from datetime import datetime
 
+app = Flask(__name__)
+app.secret_key = 'your_secret_key'  # Use a proper secret key for session management
+
+
+# User class
+class User:
+    def __init__(self, uid, username, email, password):
+        self.uid = uid
+        self.username = username
+        self.email = email
+        self.password = password
+        self.created = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+# Product class
 class Product:
     def __init__(self, name, price, category, description):
         self.name = name
@@ -20,15 +36,9 @@ class Product:
     def add_review(self, user, rating, comment):
         self.reviews.append({'user': user, 'rating': rating, 'comment': comment})
 
-class User:
-    def __init__(self, uid, username, email, password):
-        self.uid = uid
-        self.username = username
-        self.email = email
-        self.password = password
-        self.created = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-users = []
+# Initialize users as a dictionary, not a list
+users = {}
 products = [
     Product("Peace Lily", 12.99, "Indoor", "Calming with white blooms. Loves shade."),
     Product("Snake Plant", 15.49, "Indoor", "Tough, low-maintenance, and cleans air."),
@@ -40,36 +50,15 @@ products = [
 
 cart = []
 total = 0.0
-user = None
+user = None  # Keep track of the current logged-in user
 
-def welcome():
-    print("🌿 Welcome to the Online Plant Nursery!")
-    while True:
-        print("1. Login\n2. Create Account")
-        choice = input("Choose an option (1 or 2): ").strip()
-        if choice == "1" or choice == "2":
-            return choice
-        else:
-            print("Invalid input. Please choose 1 to Login or 2 to Create Account.")
 
-def login_or_create(choice):
-    global user
-    if choice == "1":
-        print("\n--- Login ---")
-        uname = input("Username: ")
-        pwd = input("Password: ")
-        user = User(0, uname, "placeholder@mail.com", pwd)
-        print(f"Logged in as {uname}.\n")
-    else:
-        print("\n--- Create Account ---")
-        uname = input("Username: ")
-        email = input("Email: ")
-        pwd = input("Password: ")
-        user = User(len(users)+1, uname, email, pwd)
-        users.append(user)
-        print(f"Account created. Welcome, {uname}!\n")
-
+# Function to show the cart
 def show_cart():
+    global total
+    if not user:  # Check if the user is logged in
+        return redirect(url_for('login'))  # Redirect to login if not logged in
+
     print("\n🛒 Your Cart:")
     if not cart:
         print("Cart is empty.")
@@ -78,7 +67,13 @@ def show_cart():
             print(f"- {p.name} - ${p.price:.2f}")
         print(f"Total: ${total:.2f}")
 
+
+# Function to show all reviews
 def show_reviews():
+    global user
+    if not user:  # Check if the user is logged in
+        return redirect(url_for('login'))  # Redirect to login if not logged in
+
     print("\n📝 Reviews:")
     for p in products:
         print(f"\n🌱 {p.name}")
@@ -88,8 +83,13 @@ def show_reviews():
         else:
             print("  No reviews written yet.....")
 
+
+# Function for the shopping experience
 def shop():
     global total
+    if not user:  # Check if the user is logged in
+        return redirect(url_for('login'))  # Redirect to login if not logged in
+
     while True:
         print("\n1. Indoor Plants\n2. Outdoor Plants")
         choice = input("Choose a category (1 or 2): ").strip()
@@ -120,10 +120,12 @@ def shop():
                 break
         else:
             print("Couldn't find that plant.")
-            checkout_option = input("\nWould you like to:\n1. Checkout\n2. Add more plants\nChoose an option (1 or 2): ").strip()
+            checkout_option = input(
+                "\nWould you like to:\n1. Checkout\n2. Add more plants\nChoose an option (1 or 2): ").strip()
             while checkout_option not in ["1", "2"]:
                 print("Invalid option. Please choose 1 to checkout or 2 to add more plants.")
-                checkout_option = input("\nWould you like to:\n1. Checkout\n2. Add more plants\nChoose an option (1 or 2): ").strip()
+                checkout_option = input(
+                    "\nWould you like to:\n1. Checkout\n2. Add more plants\nChoose an option (1 or 2): ").strip()
             if checkout_option == "1":
                 print(f"\nThanks for shopping! Total: ${total:.2f}")
                 if input("Leave a review? (yes/no): ").lower() == "yes":
@@ -147,14 +149,58 @@ def shop():
             elif checkout_option == "2":
                 continue
 
+
+# Function to view profile
 def profile():
+    if not user:  # Check if the user is logged in
+        return redirect(url_for('login'))  # Redirect to login if not logged in
+
     print("\n👤 Profile")
     print(f"Username: {user.username}")
     print(f"Email: {user.email}")
     print(f"Joined: {user.created}")
 
+
+# Login or account creation function
+def login_or_create(choice):
+    global user
+    if choice == "1":
+        print("\n--- Login ---")
+        uname = input("Username: ")
+        pwd = input("Password: ")
+        if uname in users and users[uname].password == pwd:  # Check if the user exists and password matches
+            user = users[uname]
+            print(f"Logged in as {uname}.\n")
+        else:
+            print("Invalid username or password. Please try again.")
+            return False
+    else:
+        print("\n--- Create Account ---")
+        uname = input("Username: ")
+        email = input("Email: ")
+        pwd = input("Password: ")
+        user = User(len(users) + 1, uname, email, pwd)
+        users[uname] = user  # Add the new user to the dictionary
+        print(f"Account created. Welcome, {uname}!\n")
+    return True
+
+
+# Function to welcome the user and choose login or account creation
+def welcome():
+    print("🌿 Welcome to the Online Plant Nursery!")
+    while True:
+        print("1. Login\n2. Create Account")
+        choice = input("Choose an option (1 or 2): ").strip()
+        if choice == "1" or choice == "2":
+            if login_or_create(choice):
+                break
+        else:
+            print("Invalid input. Please choose 1 to Login or 2 to Create Account.")
+
+
+# Main function to run the app
 if __name__ == "__main__":
-    login_or_create(welcome())
+    welcome()
 
     while True:
         print("\nWhat would you like to do?")
